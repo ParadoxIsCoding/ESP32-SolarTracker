@@ -24,7 +24,8 @@ Times are UTC epoch seconds. Day boundaries and `YYYYMMDD` dates are Australia/B
 | GET | `/api/raw?fn=&start=&count=` | Live read of a whitelisted, documented register window (fn 4: 0–124, 3000–3124; fn 3: 0–124; count ≤ 45). |
 | GET | `/api/settings` | Settings. |
 | POST | `/api/settings` | **auth** · JSON body with any of the settings fields. |
-| POST | `/update` | **auth** · firmware upload (`multipart/form-data`, field `firmware`). |
+| GET | `/update` | **auth** · upload form. |
+| POST | `/update` | **auth** · firmware upload (`multipart/form-data`, field `firmware`). Buffered history is saved before writing; filesystem images are refused (they would erase history). |
 | GET | `/reboot`, `/startAp` | **auth** · reboot / open the Wi-Fi setup access point. |
 
 ## `/api/meta`

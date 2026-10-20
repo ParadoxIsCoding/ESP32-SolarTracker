@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 
-const watch = process.argv.includes("--no-embed");
+const noEmbed = process.argv.includes("--no-embed");
 const res = await build({
   entryPoints: ["src/main.tsx"],
   bundle: true,
@@ -34,4 +34,4 @@ mkdirSync("dist", { recursive: true });
 writeFileSync("dist/index.html", html);
 const gz = gzipSync(html, { level: 9 }).length;
 console.log(`dist/index.html: ${(html.length / 1024).toFixed(1)} KiB raw, ${(gz / 1024).toFixed(1)} KiB gzip`);
-if (!watch) execFileSync("python3", ["../tools/embed_web.py", "dist/index.html"], { stdio: "inherit" });
+if (!noEmbed) execFileSync("python3", ["../tools/embed_web.py", "dist/index.html"], { stdio: "inherit" });

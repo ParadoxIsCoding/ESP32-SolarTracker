@@ -1,8 +1,8 @@
 #include "LocalApi.h"
 
 #include <ArduinoJson.h>
-#include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
 #include <LittleFS.h>
 #include <TLog.h>
 #include <ModbusMaster.h>
@@ -23,7 +23,6 @@ namespace {
 
 LocalWebServer* srv = nullptr;
 Growatt* inv = nullptr;
-ESP8266HTTPUpdateServer updater;
 
 // ------------------------------------------------------------ settings ----
 struct Settings {
@@ -826,6 +825,68 @@ void handleRaw() {
   sendDoc(doc);
 }
 
+// ---------------------------------------------------------- firmware ----
+// Own updater instead of ESP8266HTTPUpdateServer: the upload runs inside a
+// single request (solarLoop() never sees it), so buffered history is saved
+// here, at the start of an authenticated upload. Filesystem images are
+// refused because they would erase all stored history.
+bool otaAuthed = false;
+String otaError;
+
+void handleUpdatePage() {
+  if (!localApiAuthorize()) return;
+  srv->send_P(200, PSTR("text/html"),
+              PSTR("<!doctype html><meta name=viewport content='width=device-width'>"
+                   "<body style='font:15px system-ui;background:#0b1018;color:#f1f5f9;padding:24px'>"
+                   "<h3>Firmware update</h3><form method=POST enctype=multipart/form-data>"
+                   "<input type=file name=firmware accept=.bin> <button>Upload</button></form>"
+                   "<p style='color:#94a3b8'>History and settings are kept.</p>"));
+}
+
+void handleUpdateUpload() {
+  HTTPUpload& up = srv->upload();
+  if (up.status == UPLOAD_FILE_START) {
+    otaError = "";
+    otaAuthed = srv->authenticate(OTA_HTTP_USER, OTA_HTTP_PASSWORD);
+    if (!otaAuthed) return;
+    if (up.name == "filesystem") {
+      otaError = F("filesystem images are not accepted (they would erase history)");
+      return;
+    }
+    solarFlush();  // persist buffered minutes before the new image reboots us
+    WiFiUDP::stopAll();
+    const uint32_t space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+    if (!Update.begin(space, U_FLASH)) otaError = Update.getErrorString();
+  } else if (up.status == UPLOAD_FILE_WRITE) {
+    if (otaAuthed && !otaError.length() &&
+        Update.write(up.buf, up.currentSize) != up.currentSize)
+      otaError = Update.getErrorString();
+  } else if (up.status == UPLOAD_FILE_END) {
+    if (otaAuthed && !otaError.length() && !Update.end(true))
+      otaError = Update.getErrorString();
+  } else if (up.status == UPLOAD_FILE_ABORTED) {
+    if (otaAuthed) Update.end();
+    otaError = F("upload aborted");
+  }
+  delay(0);
+}
+
+void handleUpdateDone() {
+  if (!otaAuthed) {
+    srv->requestAuthentication(BASIC_AUTH, "ShineWiFi-X");
+    return;
+  }
+  otaAuthed = false;
+  if (otaError.length() || Update.hasError()) {
+    srv->send(500, F("text/plain"), String(F("Update failed: ")) + otaError);
+    return;
+  }
+  srv->send(200, F("text/html"),
+            F("<META http-equiv=\"refresh\" content=\"15;URL=/\">Update Success! Rebooting..."));
+  delay(500);
+  ESP.restart();
+}
+
 void handleSettingsGet() {
   StaticJsonDocument<640> d;
   settingsJson(d);
@@ -907,17 +968,8 @@ void setupLocalApi(LocalWebServer& server, Growatt& inverter) {
   server.on(F("/api/raw"), HTTP_GET, handleRaw);
   server.on(F("/api/settings"), HTTP_GET, handleSettingsGet);
   server.on(F("/api/settings"), HTTP_POST, handleSettingsPost);
-  updater.setup(&server, "/update", OTA_HTTP_USER, OTA_HTTP_PASSWORD);
-  // The whole upload runs inside one request, so solarLoop() never sees it.
-  // The updater reports progress after each chunk it writes: save buffered
-  // history on the first one, before the new image reboots the stick.
-  Update.onProgress([](size_t, size_t) {
-    static bool flushed = false;
-    if (!flushed) {
-      flushed = true;
-      solarFlush();
-    }
-  });
+  server.on(F("/update"), HTTP_GET, handleUpdatePage);
+  server.on(F("/update"), HTTP_POST, handleUpdateDone, handleUpdateUpload);
 }
 
 void solarFlush() {
@@ -926,16 +978,6 @@ void solarFlush() {
 }
 
 void solarLoop() {
-  // A firmware upload is in progress: save buffered minutes before the
-  // updater reboots the stick, and stop polling until it does.
-  if (Update.isRunning()) {
-    static bool flushed = false;
-    if (!flushed) {
-      flushed = true;
-      solarFlush();
-    }
-    return;
-  }
   if (inv->GetWiFiStickType() == Undef_stick) {
     if (poll.linkUp) setLink(false);
     return;

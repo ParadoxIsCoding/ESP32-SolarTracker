@@ -546,7 +546,9 @@ void setupWifiManagerConfigMenu(WiFiManager& wm) {
  */
 void setupMenu(WiFiManager& wm, bool enableCustomParams) {
   Log.println(F("Setting up WiFiManager menu"));
-  std::vector<const char*> menu = {"wifi", "wifinoscan", "update"};
+  // No "update" entry: the setup AP uses a public default password, so
+  // firmware may only be uploaded via the authenticated /update (or USB).
+  std::vector<const char*> menu = {"wifi", "wifinoscan"};
   if (enableCustomParams) {
     menu.push_back("param");
   }

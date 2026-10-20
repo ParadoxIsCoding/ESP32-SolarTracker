@@ -27,7 +27,7 @@ typedef ESP8266WebServer LocalWebServer;
 #error "LocalApi currently targets the ESP8266 (ShineWiFi-X) only"
 #endif
 
-#define LOCAL_FW_VERSION "mintlx-ro.4"
+#define LOCAL_FW_VERSION "mintlx-ro.5"
 
 class Growatt;
 

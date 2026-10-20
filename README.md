@@ -55,7 +55,7 @@ cd web && npm test && npm run typecheck   # dashboard calculations
 curl -u admin:<password> -F "firmware=@firmware/OpenInverterGateway/.pio/build/ShineWifiX-MinTLX/firmware.bin" http://<stick-ip>/update
 ```
 
-History and settings survive updates. Buffered minutes are written to flash when an upload starts.
+History and settings survive updates: buffered minutes are written to flash as soon as an authenticated upload starts. Filesystem images are refused, because they would erase history.
 
 **Over USB** (first install or recovery): open the stick and bridge CN1 pin 6 (GPIO0) to pin 7 (GND) while plugging it into the Mac. Then:
 
@@ -67,7 +67,7 @@ Use only 115200 baud. The XR21V1410 + macOS combination drops out at higher rate
 
 ## Wi-Fi setup
 
-With no saved network, the stick opens the `GrowattConfig` access point (password `growsolar`). Hold the stick's button for about 3 s to reopen it later. Pick your 2.4 GHz network there.
+With no saved network, the stick opens the `GrowattConfig` access point (password `growsolar`). Hold the stick's button for about 3 s to reopen it later. Pick your 2.4 GHz network there. The setup page deliberately has no firmware-upload option: its password is a public default, so firmware can only be installed through the authenticated `/update` or over USB.
 
 ## Development
 

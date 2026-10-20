@@ -59,19 +59,44 @@ void ensureFreeSpace() {
   }
 }
 
+// Previous-layout copy of a file: "/h1/20746.bin" -> "/h1/20746.p.bin".
+String prevPath(const String& path) {
+  return path.substring(0, path.length() - 4) + ".p.bin";
+}
+
+sc::FileHeader currentHeader(uint8_t tier) {
+  sc::FileHeader h{};
+  h.tier = tier;
+  h.nch = tier == 1 ? CAT_H1 : CAT_H15;
+  for (uint8_t i = 0; i < h.nch; i++)
+    h.ch[i] = tier == 1 ? kTierH1[i].ch
+                        : (uint8_t)(kTierH15[i].ch | (kTierH15[i].agg << 6));
+  return h;
+}
+
 bool appendWithHeader(const String& path, uint8_t tier, const uint8_t* data,
                       size_t len) {
+  const sc::FileHeader h = currentHeader(tier);
+  uint8_t hb[48];
+  const size_t hs = sc::packHeader(hb, h);
+  // If today's/this month's file was started by firmware with a different
+  // record layout, keep it aside (still readable) and start a new file, so
+  // records of two layouts are never mixed in one file.
+  {
+    File r = LittleFS.open(path, "r");
+    if (r) {
+      uint8_t eb[48];
+      size_t got = r.read(eb, hs);
+      r.close();
+      if (got != hs || memcmp(eb, hb, hs) != 0) {
+        LittleFS.remove(prevPath(path));
+        LittleFS.rename(path, prevPath(path));
+      }
+    }
+  }
   File f = LittleFS.open(path, "a");
   if (!f) return false;
   if (f.size() == 0) {
-    sc::FileHeader h{};
-    h.tier = tier;
-    h.nch = tier == 1 ? CAT_H1 : CAT_H15;
-    for (uint8_t i = 0; i < h.nch; i++)
-      h.ch[i] = tier == 1 ? kTierH1[i].ch
-                          : (uint8_t)(kTierH15[i].ch | (kTierH15[i].agg << 6));
-    uint8_t hb[48];
-    size_t hs = sc::packHeader(hb, h);
     if (f.write(hb, hs) != hs) {
       f.close();
       return false;
@@ -286,14 +311,17 @@ uint32_t readSeries(uint8_t tier, uint32_t from, uint32_t to,
   if (ncols == 0 || ncols > 40 || to < from) return 0;
   uint32_t rows = 0;
   if (tier == 1) {
-    for (int32_t day = sc::localDay(from); day <= sc::localDay(to); day++)
+    for (int32_t day = sc::localDay(from); day <= sc::localDay(to); day++) {
+      rows += streamFile(prevPath(h1Path(day)), from, to, cols, ncols, fn, ctx);
       rows += streamFile(h1Path(day), from, to, cols, ncols, fn, ctx);
+    }
   } else {
     int y;
     unsigned m, d;
     sc::civilFromDays(sc::localDay(from), y, m, d);
     const uint32_t last = sc::yyyymmdd(sc::localDay(to)) / 100;
     for (uint32_t ym = (uint32_t)y * 100 + m; ym <= last;) {
+      rows += streamFile(prevPath(h15Path(ym)), from, to, cols, ncols, fn, ctx);
       rows += streamFile(h15Path(ym), from, to, cols, ncols, fn, ctx);
       ym = (ym % 100 == 12) ? (ym / 100 + 1) * 100 + 1 : ym + 1;
     }
@@ -334,6 +362,9 @@ bool isBackupPath(const String& p) {
 
 String readText(const char* path) {
   File f = LittleFS.open(path, "r");
+  // writeTextAtomic removes the old file before renaming the new one in;
+  // after a power cut in that window only the .tmp copy exists.
+  if (!f) f = LittleFS.open(String(path) + ".tmp", "r");
   if (!f) return String();
   String s = f.readString();
   f.close();
