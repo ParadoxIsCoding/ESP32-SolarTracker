@@ -1,0 +1,6 @@
+# Original firmware dumps contain Wi-Fi credentials - keep local only
+backups/*.bin
+backups/**/*.bin
+
+# macOS
+.DS_Store

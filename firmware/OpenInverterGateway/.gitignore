@@ -1,0 +1,19 @@
+Libs/
+*.bak
+*.obj
+.idea/
+cmake-build*/
+CMakeLists*.txt
+
+# Config.h is tracked in this project (no secrets; WiFi creds are set via the captive portal)
+
+# PlatformIO
+.pio
+platformio-local.ini
+
+# VisualStudioCode
+.vscode/*
+*.code-workspace
+
+# Local secrets
+SRC/ShineWiFi-ModBus/Secrets.h
