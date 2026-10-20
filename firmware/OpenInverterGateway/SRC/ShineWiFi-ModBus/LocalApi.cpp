@@ -908,6 +908,16 @@ void setupLocalApi(LocalWebServer& server, Growatt& inverter) {
   server.on(F("/api/settings"), HTTP_GET, handleSettingsGet);
   server.on(F("/api/settings"), HTTP_POST, handleSettingsPost);
   updater.setup(&server, "/update", OTA_HTTP_USER, OTA_HTTP_PASSWORD);
+  // The whole upload runs inside one request, so solarLoop() never sees it.
+  // The updater reports progress after each chunk it writes: save buffered
+  // history on the first one, before the new image reboots the stick.
+  Update.onProgress([](size_t, size_t) {
+    static bool flushed = false;
+    if (!flushed) {
+      flushed = true;
+      solarFlush();
+    }
+  });
 }
 
 void solarFlush() {

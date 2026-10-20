@@ -18,7 +18,7 @@ function eventText(type: number, code: number, v: number) {
     case 6: case 7: return `${v} → ${code}`;
     case 8: return `flags ${code}, day counter ${(v / 10).toFixed(1)} kWh`;
     case 9: return fmtYmd(v);
-    case 11: return code === 1 ? "Oldest history file removed (retention)" : `Write problem (${v} records)`;
+    case 11: return code === 1 ? "Oldest history file removed (tier full)" : code === 3 ? `Low free space: oldest detail file removed (${(v / 1024).toFixed(0)} KB)` : `Write problem (${v} records)`;
     default: return "";
   }
 }

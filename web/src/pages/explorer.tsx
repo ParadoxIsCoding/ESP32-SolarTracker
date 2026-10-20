@@ -12,7 +12,7 @@ import {
 import { Card, Empty, Icon, QualityBadge, Seg, download, useAsync } from "../ui";
 
 const PALETTE = ["#55c7f7", "#a78bfa", "#fbbf24", "#34d399", "#f87171", "#f472b6", "#60a5fa", "#a3e635"];
-const CH_COLOR: Record<string, string> = { pac: "#55c7f7", ppv: "#a78bfa", pimp: "#f87171", pexp: "#34d399", ppv1: "#55c7f7", ppv2: "#a78bfa", ppv3: "#fbbf24", vpv1: "#55c7f7", vpv2: "#a78bfa", vpv3: "#fbbf24", ipv1: "#55c7f7", ipv2: "#a78bfa", ipv3: "#fbbf24" };
+const CH_COLOR: Record<string, string> = { pac: "#55c7f7", ppv: "#a78bfa", pimp: "#f87171", pload: "#fbbf24", pexp: "#34d399", ppv1: "#55c7f7", ppv2: "#a78bfa", ppv3: "#fbbf24", vpv1: "#55c7f7", vpv2: "#a78bfa", vpv3: "#fbbf24", ipv1: "#55c7f7", ipv2: "#a78bfa", ipv3: "#fbbf24" };
 const MAX_SERIES = 8;
 
 export type RangeKey = "live" | "15m" | "1h" | "6h" | "today" | "yesterday" | "7d" | "30d" | "month" | "lastmonth" | "year" | "all" | "custom";
@@ -32,7 +32,7 @@ export interface View {
 const mk = (ids: string[], style: Style = "line"): SeriesCfg[] =>
   ids.map((id, i) => ({ id, color: CH_COLOR[id] ?? PALETTE[i % PALETTE.length], style, show: true }));
 export const BUILTIN: View[] = [
-  { id: "b1", name: "Total generation", series: mk(["pac", "ppv", "pimp"]), range: "today", res: "auto", mode: "raw", compare: true, builtin: true },
+  { id: "b1", name: "Total generation", series: mk(["pac", "ppv", "pimp", "pload"]), range: "today", res: "auto", mode: "raw", compare: true, builtin: true },
   { id: "b2", name: "All MPPT powers", series: mk(["ppv1", "ppv2", "ppv3"]), range: "today", res: "auto", mode: "raw", compare: false, builtin: true },
   { id: "b3", name: "All MPPT voltages", series: mk(["vpv1", "vpv2", "vpv3"]), range: "today", res: "auto", mode: "raw", compare: false, builtin: true },
   { id: "b4", name: "All MPPT currents", series: mk(["ipv1", "ipv2", "ipv3"]), range: "today", res: "auto", mode: "raw", compare: false, builtin: true },

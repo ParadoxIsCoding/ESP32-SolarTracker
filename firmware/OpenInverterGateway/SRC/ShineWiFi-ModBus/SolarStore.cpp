@@ -36,6 +36,29 @@ void enforceBudget(const char* dir, uint32_t budget) {
   }
 }
 
+// Safety net on top of the per-tier budgets: always keep at least this much
+// of the filesystem free (more than 2 summer days of 1-minute data). If it is
+// ever undercut, the oldest detail goes first - 1-minute days, then 15-minute
+// months. Daily summaries and the newest file of a tier are never removed here.
+const uint32_t kMinFree = 128UL * 1024;
+
+bool dropOldest(const char* dir) {
+  std::vector<Entry> files = listDir(dir);
+  if (files.size() < 2) return false;
+  LittleFS.remove(String(dir) + "/" + files[0].name);
+  logEvent((uint32_t)time(nullptr), EV_STORAGE, 3, files[0].size);
+  return true;
+}
+
+void ensureFreeSpace() {
+  for (int guard = 0; guard < 16; guard++) {
+    FSInfo info;
+    if (!LittleFS.info(info)) return;
+    if (info.totalBytes - info.usedBytes >= kMinFree) return;
+    if (!dropOldest("/h1") && !dropOldest("/h15")) return;
+  }
+}
+
 bool appendWithHeader(const String& path, uint8_t tier, const uint8_t* data,
                       size_t len) {
   File f = LittleFS.open(path, "a");
@@ -102,12 +125,14 @@ bool appendH1(int32_t day, const uint8_t* recs, uint8_t count) {
   bool ok = appendWithHeader(h1Path(day), 1, recs,
                              (size_t)count * sc::recordSize(CAT_H1));
   enforceBudget("/h1", kBudgetH1);
+  ensureFreeSpace();
   return ok;
 }
 
 bool appendH15(uint32_t yyyymm, const uint8_t* rec) {
   bool ok = appendWithHeader(h15Path(yyyymm), 15, rec, sc::recordSize(CAT_H15));
   enforceBudget("/h15", kBudgetH15);
+  ensureFreeSpace();
   return ok;
 }
 
@@ -163,6 +188,7 @@ bool finalizeDay(const sc::DaySummary& d) {
   f.close();
   if (ok) LittleFS.remove("/d/today.bin");
   enforceBudget("/d", kBudgetDays + sc::kDaySummarySize);
+  ensureFreeSpace();
   return ok;
 }
 
