@@ -17,9 +17,10 @@
 namespace store {
 
 // Byte budgets per tier (see docs/ESP8266_BUDGET.md). Oldest files go first.
-const uint32_t kBudgetH1 = 1088UL * 1024;
-const uint32_t kBudgetH15 = 448UL * 1024;
-const uint32_t kBudgetDays = 176UL * 1024;
+// Weighted toward daily summaries (generation + grid totals): ~22 years.
+const uint32_t kBudgetH1 = 736UL * 1024;    // ~18 days of 1-minute detail
+const uint32_t kBudgetH15 = 448UL * 1024;   // ~4 months of 15-minute data
+const uint32_t kBudgetDays = 512UL * 1024;  // ~22 years of 64-byte days
 
 enum EventType : uint8_t {
   EV_BOOT = 1,

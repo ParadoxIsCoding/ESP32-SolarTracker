@@ -160,3 +160,26 @@ export function feedInValue(dailyKwh: number[], rate1: number, rate2: number, ti
   }
   return v;
 }
+
+export interface Rates { usage: number; feed1: number; feed2: number; tierKwh: number }
+export interface DayValue {
+  generated: number; exported: number; selfUsed: number; selfUsePct: number | null;
+  feedIn: number; avoided: number; total: number;
+}
+/**
+ * Value of one day's solar using the meter's own export counter:
+ *   self-used = generated - exported   (never below 0)
+ *   feed-in   = first `tierKwh` exported at feed1, the rest at feed2
+ *   avoided   = self-used x usage rate (energy you didn't have to buy)
+ * Supply charges are paid regardless of solar, so they are not included.
+ * Returns null if the day has no meter data (export, import and load all 0
+ * while generating), so callers can fall back to bounds.
+ */
+export function dayValue(genKwh: number, expKwh: number, impKwh: number, loadKwh: number, r: Rates): DayValue | null {
+  if (genKwh > 0.5 && expKwh === 0 && impKwh === 0 && loadKwh === 0) return null;
+  const exported = Math.min(Math.max(0, expKwh), Math.max(0, genKwh));
+  const selfUsed = Math.max(0, genKwh - exported);
+  const feedIn = r.tierKwh > 0 ? Math.min(exported, r.tierKwh) * r.feed1 + Math.max(0, exported - r.tierKwh) * r.feed2 : exported * r.feed1;
+  const avoided = selfUsed * r.usage;
+  return { generated: genKwh, exported, selfUsed, selfUsePct: genKwh > 0 ? (selfUsed / genKwh) * 100 : null, feedIn, avoided, total: feedIn + avoided };
+}

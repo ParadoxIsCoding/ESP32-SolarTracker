@@ -82,9 +82,9 @@ export function SettingsPage() {
       <div class="grid g2">
         <Card title="Data retention" sub="Fixed by the 2 MB history partition">
           <div class="list">
-            <div class="li"><span>1-minute averages</span><span>≈ 26 days (24 in summer, 30 in winter)</span></div>
+            <div class="li"><span>1-minute averages</span><span>≈ 18 days (16 in summer, 20 in winter)</span></div>
             <div class="li"><span>15-minute averages</span><span>≈ 4 months</span></div>
-            <div class="li"><span>Daily summaries</span><span>≈ 10 years</span></div>
+            <div class="li"><span>Daily summaries</span><span>≈ 22 years (generation, export, grid import, peaks)</span></div>
             <div class="li"><span>Live 2-second samples</span><span>This browser tab only (30 min)</span></div>
           </div>
           <p class="foot-note" style={{ marginBottom: 0 }}>Download history files from Diagnostics → Backup to keep them longer.</p>

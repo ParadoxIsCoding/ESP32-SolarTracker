@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  combine, correlation, feedInValue, efficiency, indexed, integrateKWh, minMaxDownsample, normalise,
+  combine, correlation, dayValue, feedInValue, efficiency, indexed, integrateKWh, minMaxDownsample, normalise,
   pctChange, rolling, shares, stats, sumDays,
 } from "../src/analytics.ts";
 import { decodeSeries } from "../src/proto.ts";
@@ -102,4 +102,20 @@ test("two-tier feed-in value per day", () => {
   assert.ok(Math.abs(feedInValue([25, 6], 0.08, 0.03, 10) - 1.73) < 1e-9);
   assert.ok(Math.abs(feedInValue([25], 0.08, 0.03, 0) - 2) < 1e-9); // single rate
   assert.equal(feedInValue([0, -1], 0.08, 0.03, 10), 0);
+});
+
+test("day value from meter export: self-use at usage rate, tiered feed-in", () => {
+  const r = { usage: 0.27974, feed1: 0.08, feed2: 0.03, tierKwh: 8 };
+  // 44 kWh generated, 31.7 exported -> 12.3 self-used
+  const v = dayValue(44, 31.7, 0.4, 15.3, r)!;
+  assert.ok(Math.abs(v.selfUsed - 12.3) < 1e-9);
+  assert.ok(Math.abs(v.feedIn - (8 * 0.08 + 23.7 * 0.03)) < 1e-9); // 1.351
+  assert.ok(Math.abs(v.avoided - 12.3 * 0.27974) < 1e-9);
+  assert.ok(Math.abs((v.selfUsePct as number) - (12.3 / 44) * 100) < 1e-9);
+  // export can't exceed generation (meter/inverter timing) and is clamped
+  assert.equal(dayValue(5, 7, 0, 0, r)!.selfUsed, 0);
+  // no meter data at all while generating -> null (caller falls back)
+  assert.equal(dayValue(30, 0, 0, 0, r), null);
+  // a dull day with everything used at home is valid meter data
+  assert.equal(dayValue(3, 0, 2, 5, r)!.feedIn, 0);
 });

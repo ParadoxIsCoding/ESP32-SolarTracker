@@ -5,9 +5,9 @@ A self-contained monitoring dashboard for a **Growatt MIN 8000TL-X** that runs e
 * **Firmware:** [OpenInverterGateway](https://github.com/OpenInverterGateway/OpenInverterGateway), adapted into a **read-only** build. The compiled binary contains no Modbus write functions at all.
 * **Polling:** power, PV and AC values every 2 s; energy counters and diagnostics every 10 s, with automatic back-off when the inverter shuts down.
 * **History** is kept in the stick's flash (LittleFS, 2 MB):
-  * 1-minute averages for ~26 days
+  * 1-minute averages for ~18 days
   * 15-minute averages for ~4 months
-  * daily summaries for ~10 years
+  * daily summaries (generation, export, grid import, peaks) for ~22 years
 * **Dashboard:** Preact + uPlot, about 67 KB gzipped and served from flash. It has Overview, Live, Graph Explorer, MPPT, Energy, All measurements, Diagnostics and Settings pages.
 
 > The stick is powered by the inverter, so the dashboard is unreachable at night. History is preserved and logging resumes when the inverter wakes up.

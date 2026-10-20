@@ -12,6 +12,7 @@ export interface SeriesDef {
   dash?: boolean;
   width?: number;
   smooth?: boolean; // monotone spline (no overshoot), presentation only
+  barSize?: number; // bar width as a fraction of the slot (default 0.7)
   show?: boolean;
   fmt: (v: number | null) => string;
 }
@@ -117,7 +118,7 @@ function seriesOpts(s: SeriesDef, height: number): uPlot.Series {
     };
   }
   if (style === "bars") {
-    o.paths = uPlot.paths.bars!({ size: [0.7, 60], gap: 2 });
+    o.paths = uPlot.paths.bars!({ size: [s.barSize ?? 0.7, 60], gap: 2 });
     o.fill = hexA(s.color, 0.85);
     o.width = 0;
   } else if (style === "step") {
@@ -142,6 +143,9 @@ export function Chart(p: ChartProps) {
     const xKind = p.xKind ?? "time";
     const scales: uPlot.Scales = { x: { time: true } };
     if (p.xRange) scales.x.range = () => p.xRange!;
+    else if (xKind === "day")
+      // daily bars: pad half a day each side so one or two days don't stretch the axis
+      scales.x.range = (_u, min, max) => [min - 43200, Math.max(max, min + 6 * 86400) + 43200];
     for (const a of p.axes)
       scales[a.key] = {
         range: (_u, min, max) => {
@@ -155,7 +159,7 @@ export function Chart(p: ChartProps) {
     const axes: uPlot.Axis[] = [
       {
         stroke: "#94a3b8", grid: { show: false }, ticks, font, gap: 8, size: 34,
-        values: (_u, vals) => vals.map((v) => (xKind === "day" ? fmtDay(v + 43200).replace(/^\w+ /, "") : fmtTime(v))),
+        values: (_u, vals) => vals.map((v) => (xKind === "day" ? fmtDay(v + 43200).replace(/^\w+,? /, "") : fmtTime(v))),
       },
       ...p.axes.map((a, i): uPlot.Axis => ({
         scale: a.key, side: a.side === "left" ? 3 : 1, stroke: "#94a3b8", font, ticks,

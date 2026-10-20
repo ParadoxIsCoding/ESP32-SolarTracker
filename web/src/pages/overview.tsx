@@ -1,4 +1,5 @@
-import { efficiency, pctChange, shares, sumDays } from "../analytics";
+import { dayValue, efficiency, pctChange, shares, sumDays } from "../analytics";
+import { api } from "../api";
 import { Chart, Legend } from "../chart";
 import { days, history } from "../data";
 import { fmtPct, fmtStr, fmtValue, scaleUnit, statusOf } from "../format";
@@ -77,6 +78,12 @@ export function Overview() {
   const xr: [number, number] = [Math.min(today + 5 * 3600, firstT), Math.max(today + 19 * 3600, now)];
 
   const ppv = ["ppv1", "ppv2", "ppv3"].map(val);
+  const cfg = useAsync(() => api.settings(), []);
+  const c = cfg.data;
+  const tv = c && eacToday != null && val("eexp_today") != null
+    ? dayValue(eacToday, val("eexp_today")!, val("eimp_today") ?? 0, val("eload_today") ?? 0,
+      { usage: c.tariffImport, feed1: c.tariffExport, feed2: c.tariffExport2 || c.tariffExport, tierKwh: c.exportTier1Kwh })
+    : null;
   const sh = shares(ppv);
 
   return (
@@ -163,6 +170,8 @@ export function Overview() {
           <div class="list">
             <div class="li"><span>{partialToday ? "Logging started" : "First generation"}</span><span class="num">{todayRow ? minToTime(todayRow.firstGenMin) : "—"}</span></div>
             <div class="li"><span>Generating time{partialToday ? " (logged)" : ""}</span><span class="num">{todayRow ? `${Math.floor(todayRow.genMin / 60)} h ${todayRow.genMin % 60} min` : "—"}</span></div>
+            <div class="li"><span>Exported / used at home</span><span class="num">{tv ? `${tv.exported.toFixed(1)} / ${tv.selfUsed.toFixed(1)} kWh` : "—"}</span></div>
+            <div class="li"><span>Solar value so far</span><span class="num">{tv ? `$${tv.total.toFixed(2)}` : "—"}{tv && <span class="faint"> · ${tv.avoided.toFixed(2)} saved + ${tv.feedIn.toFixed(2)} feed-in</span>}</span></div>
             <div class="li"><span>PV1 / PV2 / PV3 today</span><span class="num">{["epv1_today", "epv2_today", "epv3_today"].map((k) => fmtValue(val(k), "kWh").v).join(" / ")} kWh</span></div>
             <div class="li"><span>Yesterday total</span><span class="num">{fmtStr(drows.find((d) => d.date === ymd(today - DAY))?.eac != null ? drows.find((d) => d.date === ymd(today - DAY))!.eac / 10 : null, "kWh")}</span></div>
             <div class="li"><span>Output vs 8 kW rating</span><span class="num">{fmtPct(val("opct"), 0)}</span></div>
@@ -175,7 +184,7 @@ export function Overview() {
             <div class="li"><span>Household load</span><span class="num">{fmtStr(val("pload"), "W")}</span></div>
             <div class="li"><span>Exported today</span><span class="num">{fmtStr(val("eexp_today"), "kWh")}</span></div>
           </div>
-          <p class="foot-note" style={{ margin: "10px 0 0" }}>These don't fully balance yet (load reads 40–100 W above output − export), and they only count while the inverter is on. They're shown for reference and aren't used in any calculation.</p>
+          <p class="foot-note" style={{ margin: "10px 0 0" }}>Responds live to household loads (tested), and the export counter drives the solar value figures. Still marked unverified: load reads 40–100 W above output − export, and nothing is counted while the inverter is off at night.</p>
         </Card>
       </div>
       <PinnedViews />

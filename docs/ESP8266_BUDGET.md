@@ -49,13 +49,13 @@ There are no CDN dependencies. Everything is served from flash with `Content-Enc
 
 ## History capacity (LittleFS, plan ~85 % = 1,720 KiB)
 
-The record is 4 B timestamp + 24 channels × int16 + 4 B flags/CRC = 56 B. The inverter is only powered in daylight: Brisbane gives about 11 h in June, 12.5 h average and 14 h in December.
+Rebalanced on 2026-10-20 toward daily summaries (the summaries are 64 B, not the 48 B first budgeted, which would have given only ~7.5 years at 176 KiB). The record is 4 B timestamp + 24 channels × int16 + 4 B flags/CRC = 56 B. The inverter is only powered in daylight: Brisbane gives about 11 h in June, 12.5 h average and 14 h in December.
 
 | Tier | Contents | Allocation | Retention |
 |---|---|---|---|
-| 1-minute | mean of the 10-s polls, every channel | 1,088 KiB | **~26 days** (24 in Dec, 30 in Jun) |
-| 15-minute | mean + min/max of power, every channel | 448 KiB | **~4.7 months** |
-| Daily summary | 48 B: inverter day/lifetime counters, per-MPPT kWh, peaks + times, min/max V/f/temp, online/generating minutes, fault/warn codes | 176 KiB | **~10 years** |
+| 1-minute | mean of the 2-s polls, every channel | 736 KiB | **~18 days** (16 in Dec, 20 in Jun) |
+| 15-minute | means, peak AC power, day counters | 448 KiB | **~4 months** |
+| Daily summary | 64 B: inverter day/lifetime counters, per-MPPT kWh, meter export/import/load kWh, peaks + times, min/max V/f/temp, online/generating minutes, fault/warn codes | 512 KiB | **~22 years** |
 | Settings/presets | small JSON | ~8 KiB | |
 
 Each tier is a ring of fixed-size segment files; the oldest segment is deleted when space is needed.
@@ -71,7 +71,7 @@ Each tier is a ring of fixed-size segment files; the oldest segment is deleted w
 | Requirement | Constraint | Compromise |
 |---|---|---|
 | Dashboard always available | The stick is powered by the inverter's USB port; a MIN TL-X normally powers down at night | History is preserved and logging resumes each morning. **The dashboard is unreachable while the inverter is off.** (Optional fix: a USB power injector that blocks back-feed into the inverter port. Not part of this build.) |
-| Raw readings 90 days, 1-minute data 1 year, 15-minute forever | 2 MB of history flash | 1-minute data ~26 days, 15-minute ~4.7 months, daily ~10 years |
+| Raw readings 90 days, 1-minute data 1 year, 15-minute forever | 2 MB of history flash | 1-minute data ~18 days, 15-minute ~4 months, daily ~22 years (rebalanced 2026-10-20 to favour daily totals) |
 | 10-second stored history | Same | 10-second data only in the browser while a page is open; 1-minute is the finest stored resolution |
 | Concurrent clients / large downloads | ESP8266WebServer serves one request at a time | History is served per channel and per day in chunks; long ranges automatically use the 15-minute/daily tiers |
 | Export SVG | uPlot draws to canvas | PNG + CSV export; no SVG |

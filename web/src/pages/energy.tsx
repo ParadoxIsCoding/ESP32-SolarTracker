@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
-import { feedInValue, sumDays } from "../analytics";
+import { dayValue, sumDays, type DayValue, type Rates } from "../analytics";
 import { api, type Day } from "../api";
-import { Chart } from "../chart";
+import { Chart, Legend } from "../chart";
 import { days } from "../data";
 import { fmtStr } from "../format";
 import { useStore, val } from "../state";
@@ -35,14 +35,18 @@ export function Energy() {
   const c = cfg.data;
   const tariff = c?.tariffExport ?? 0;
   const co2 = c?.co2PerKwh ?? 0;
-  const fit = feedInValue(sel.map((d) => d.eac / 10), tariff, c?.tariffExport2 ?? tariff, c?.exportTier1Kwh ?? 0);
-  const fitLabel = c && c.exportTier1Kwh > 0 && c.tariffExport2 > 0
-    ? `First ${c.exportTier1Kwh} kWh/day at ${(c.tariffExport * 100).toFixed(1)} c, rest at ${(c.tariffExport2 * 100).toFixed(1)} c`
-    : `${fmtStr(total.kwh, "kWh")} × ${(tariff * 100).toFixed(1)} c/kWh`;
+  const rates: Rates = { usage: c?.tariffImport ?? 0, feed1: tariff, feed2: c?.tariffExport2 || tariff, tierKwh: c?.exportTier1Kwh ?? 0 };
+  const vOf = (d: Day): DayValue | null => dayValue(d.eac / 10, d.eexp / 10, d.eimp / 10, d.eload / 10, rates);
+  const vals = sel.map(vOf);
+  const metered = vals.filter((v): v is DayValue => v != null);
+  const sumV = (k: keyof DayValue) => metered.reduce((s, v) => s + ((v[k] as number) ?? 0), 0);
+  const tot = { gen: sumV("generated"), exp: sumV("exported"), self: sumV("selfUsed"), feed: sumV("feedIn"), avoided: sumV("avoided"), total: sumV("total") };
+  const importDay = sel.reduce((s, d) => s + d.eimp / 10, 0);
+  const money = (x: number) => `$${x.toFixed(2)}`;
 
   const csv = () => {
-    const head = "date,ac_kwh,pv1_kwh,pv2_kwh,pv3_kwh,efficiency_pct,peak_w,peak_time,first_gen,last_gen,generating_min,max_temp_c,lifetime_end_kwh,partial";
-    const lines = all.map((d) => [d.date, d.eac / 10, d.epv1 / 10, d.epv2 / 10, d.epv3 / 10, d.epv1 + d.epv2 + d.epv3 > 20 ? ((d.eac / (d.epv1 + d.epv2 + d.epv3)) * 100).toFixed(1) : "", d.pacPeak, minToTime(d.pacPeakMin), minToTime(d.firstGenMin), minToTime(d.lastGenMin), d.genMin, d.tinvMax === -32768 ? "" : d.tinvMax / 10, d.eacTotalLast / 10, d.partial].join(","));
+    const head = "date,ac_kwh,exported_kwh,self_used_kwh,import_daytime_kwh,load_daytime_kwh,value_aud,pv1_kwh,pv2_kwh,pv3_kwh,efficiency_pct,peak_w,peak_time,first_gen,last_gen,generating_min,max_temp_c,lifetime_end_kwh,partial";
+    const lines = all.map((d) => { const v = vOf(d); return [d.date, d.eac / 10, v ? v.exported.toFixed(1) : "", v ? v.selfUsed.toFixed(1) : "", d.eimp / 10, d.eload / 10, v ? v.total.toFixed(2) : "", d.epv1 / 10, d.epv2 / 10, d.epv3 / 10, d.epv1 + d.epv2 + d.epv3 > 20 ? ((d.eac / (d.epv1 + d.epv2 + d.epv3)) * 100).toFixed(1) : "", d.pacPeak, minToTime(d.pacPeakMin), minToTime(d.firstGenMin), minToTime(d.lastGenMin), d.genMin, d.tinvMax === -32768 ? "" : d.tinvMax / 10, d.eacTotalLast / 10, d.partial].join(","); });
     download(`solar_daily_${ymd(now)}.csv`, [head, ...lines].join("\n"));
   };
 
@@ -65,9 +69,18 @@ export function Energy() {
             axes={[{ key: "kWh", label: "kWh", side: "left", fmt: (v) => v.toFixed(0), min: 0 }]}
             series={[{ label: "Generation", color: "#55c7f7", axis: "kWh", style: "bars", fmt: (v) => fmtStr(v, "kWh") }]} />
         ) : (
-          <Chart height={280} xKind="day" x={sel.map((d) => ymdToEpoch(d.date))} ys={[sel.map((d) => d.eac / 10)]}
-            axes={[{ key: "kWh", label: "kWh", side: "left", fmt: (v) => v.toFixed(0), min: 0 }]}
-            series={[{ label: "Generation", color: "#55c7f7", axis: "kWh", style: "bars", fmt: (v) => fmtStr(v, "kWh") }]} />
+          <>
+            <Chart height={280} xKind="day" x={sel.map((d) => ymdToEpoch(d.date))}
+              xRange={p === "30d" ? [today - 29 * DAY - 43200, today + 43200] : p === "month" ? [monthStart(now) - 43200, today + 43200] : undefined}
+              ys={[sel.map((d) => d.eac / 10), sel.map((d, i) => (vals[i] ? vals[i]!.exported : null)), sel.map((d, i) => (vals[i] ? d.eimp / 10 : null))]}
+              axes={[{ key: "kWh", label: "kWh", side: "left", fmt: (v) => v.toFixed(0), min: 0 }]}
+              series={[
+                { label: "Generated", color: "#55c7f7", axis: "kWh", style: "bars", fmt: (v) => fmtStr(v, "kWh") },
+                { label: "Exported", color: "#a78bfa", axis: "kWh", style: "bars", barSize: 0.38, fmt: (v) => fmtStr(v, "kWh") },
+                { label: "Grid import (daytime)", color: "#f87171", axis: "kWh", style: "line", fmt: (v) => fmtStr(v, "kWh") },
+              ]} />
+            <Legend items={[{ label: "Generated", color: "#55c7f7" }, { label: "Exported (meter)", color: "#a78bfa" }, { label: "Grid import while inverter on (meter)", color: "#f87171" }]} />
+          </>
         )}
       </Card>
 
@@ -77,28 +90,41 @@ export function Energy() {
         <Stat sm label="Specific yield (avg)" value={avg != null ? avg / 8 : null} unit="kWh" foot="Per kW of inverter rating, per day (calculated)" />
       </div>
 
-      {(tariff > 0 || co2 > 0 || (c?.tariffImport ?? 0) > 0) && (
-        <Card title="Estimates" sub="Based on the assumptions you entered in Settings">
-          <div class="grid g3">
-            {tariff > 0 && <Stat sm label="If all generation were exported" value={total.kwh != null ? fit : null} unit="" text={total.kwh != null ? `$${fit.toFixed(2)}` : undefined} foot={fitLabel} />}
-            {c && c.tariffImport > 0 && <Stat sm label="If all generation offset imports" value={total.kwh != null ? total.kwh * c.tariffImport : null} unit="" text={total.kwh != null ? `$${(total.kwh * c.tariffImport).toFixed(2)}` : undefined} foot={`Upper bound · ${(c.tariffImport * 100).toFixed(3)} c/kWh usage rate`} />}
-            {c && c.supplyPerDay > 0 && <Stat sm label="Supply charges over the same days" value={null} unit="" text={`$${(c.supplyPerDay * total.days).toFixed(2)}`} foot={`${total.days} days × ${(c.supplyPerDay * 100).toFixed(3)} c/day (paid regardless of solar)`} />}
-            {co2 > 0 && <Stat sm label="Estimated CO₂ avoided" value={total.kwh != null ? total.kwh * co2 : null} unit="" text={total.kwh != null ? `${(total.kwh * co2).toFixed(0)} kg` : undefined} foot={`${co2} kg CO₂-e per kWh (grid factor)`} />}
-          </div>
-          <p class="foot-note" style={{ marginBottom: 0 }}>Your real benefit sits between these two bounds: every kWh used at home avoids the usage rate, and every kWh exported earns the feed-in rate. The split needs verified meter data, so no single "savings" figure is shown.</p>
-        </Card>
-      )}
+      <Card title="Solar value" sub={`${metered.length} of ${sel.length} days with meter data · grid meter readings (live-tested, accuracy not yet verified)`}>
+        {!c ? <Empty h={100}>Loading rates…</Empty> : !metered.length ? <Empty h={100}>No meter data in this period yet.</Empty> : (
+          <>
+            <div class="grid g4">
+              <Stat sm label="Generated" value={tot.gen} unit="kWh" tone="acc" foot={`${metered.length} metered days`} />
+              <Stat sm label="Used at home" value={tot.self} unit="kWh" tone="ok" foot={`${tot.gen ? ((tot.self / tot.gen) * 100).toFixed(0) : "—"}% self-consumption · saves ${(rates.usage * 100).toFixed(2)} c/kWh`} />
+              <Stat sm label="Exported" value={tot.exp} unit="kWh" tone="pur" foot={rates.tierKwh > 0 ? `First ${rates.tierKwh} kWh/day at ${(rates.feed1 * 100).toFixed(0)} c, rest ${(rates.feed2 * 100).toFixed(0)} c` : `${(rates.feed1 * 100).toFixed(1)} c/kWh`} />
+              <Stat sm label="Total solar value" value={tot.total} unit="" text={money(tot.total)} tone="ok" foot={`${money(tot.avoided)} saved + ${money(tot.feed)} feed-in`} />
+            </div>
+            <div class="grid g3" style={{ marginTop: 16 }}>
+              <Stat sm label="Average value per day" value={tot.total / metered.length} unit="" text={money(tot.total / metered.length)} foot="Metered days in this period" />
+              <Stat sm label="Grid import while inverter on" value={importDay} unit="kWh" foot={rates.usage ? `${money(importDay * rates.usage)} at your usage rate · night not visible` : "Night-time import isn't visible"} />
+              {co2 > 0 ? <Stat sm label="Estimated CO₂ avoided" value={tot.gen * co2} unit="" text={`${(tot.gen * co2).toFixed(0)} kg`} foot={`${co2.toFixed(2)} kg CO₂-e per kWh (grid factor)`} /> :
+                <Stat sm label="Supply charges, same days" value={null} unit="" text={money((c.supplyPerDay ?? 0) * sel.length)} foot="Paid regardless of solar" />}
+            </div>
+            <p class="foot-note" style={{ marginBottom: 0 }}>
+              Per day: used at home = generated − exported, valued at your usage rate (energy you didn't buy); exports earn the tiered feed-in rate. Exports come straight from the meter, not estimated. Daily supply charges ({money(c.supplyPerDay)}/day) are paid with or without solar, so they're not included. The stick only sees the grid while the inverter is on, so overnight imports (most of your bill) aren't included.
+            </p>
+          </>
+        )}
+      </Card>
 
       <Card title="Daily log" sub="Newest first">
         {!sel.length ? <Empty h={120}>No days logged yet.</Empty> : (
           <div class="scroll-x">
             <table class="t">
-              <thead><tr><th>Day</th><th class="r">Generated</th><th class="r">PV1 / PV2 / PV3</th><th class="r">Peak</th><th class="r">Peak time</th><th class="r">Efficiency</th><th class="r">Generating</th><th class="r">Max temp</th></tr></thead>
+              <thead><tr><th>Day</th><th class="r">Generated</th><th class="r">Exported</th><th class="r">Used at home</th><th class="r">Import (day)</th><th class="r">Value</th><th class="r">PV1 / PV2 / PV3</th><th class="r">Peak</th><th class="r">Peak time</th><th class="r">Efficiency</th><th class="r">Generating</th><th class="r">Max temp</th></tr></thead>
               <tbody>
                 {sel.slice().reverse().map((d) => (
                   <tr key={d.date}>
                     <td>{fmtDay(ymdToEpoch(d.date) + 43200)}{d.partial ? <span class="faint"> · so far</span> : ""}{d.flags ? <span class="chip warn" style={{ marginLeft: 6 }} title="The inverter's counter reset or went backwards during this day; the larger value was kept.">counter note</span> : null}</td>
                     <td class="r num">{(d.eac / 10).toFixed(1)} kWh</td>
+                    {(() => { const v = vOf(d); return v ? <>
+                      <td class="r num">{v.exported.toFixed(1)}</td><td class="r num">{v.selfUsed.toFixed(1)}</td><td class="r num">{(d.eimp / 10).toFixed(1)}</td><td class="r num">{money(v.total)}</td>
+                    </> : <><td class="r faint">—</td><td class="r faint">—</td><td class="r faint">—</td><td class="r faint">—</td></>; })()}
                     <td class="r num">{(d.epv1 / 10).toFixed(1)} / {(d.epv2 / 10).toFixed(1)} / {(d.epv3 / 10).toFixed(1)}</td>
                     <td class="r num">{fmtStr(d.pacPeak || null, "W")}</td>
                     <td class="r num">{minToTime(d.pacPeakMin)}</td>

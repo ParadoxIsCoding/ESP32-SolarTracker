@@ -118,6 +118,6 @@ Settings are written atomically (temp file + rename).
 
 History file header: `"GSH" u8 version, u8 tier, u8 ncols, u16 recordBytes, ncols × u8 column code`.
 
-Record: `u32 ts, u8 samples, u8 flags, ncols × i16, u16 CRC-16/CCITT-FALSE` over the preceding bytes. Records with a bad CRC (e.g. torn by power loss) are skipped when read. When a tier exceeds its budget, its oldest files are deleted (1088 / 448 / 176 KiB).
+Record: `u32 ts, u8 samples, u8 flags, ncols × i16, u16 CRC-16/CCITT-FALSE` over the preceding bytes. Records with a bad CRC (e.g. torn by power loss) are skipped when read. When a tier exceeds its budget, its oldest files are deleted (736 / 448 / 512 KiB).
 
 Event types: 1 boot, 2 NTP sync, 3 link up, 4 link down, 5 status change (code = new, value = old), 6 fault code change, 7 warning code change, 8 counter anomaly, 9 day closed (value = YYYYMMDD), 10 settings changed, 11 storage (code 1 = retention delete, code 2 = write failure).

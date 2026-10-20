@@ -165,7 +165,7 @@ export function Measurements() {
             <span>Source</span><span>{info.cat === "meter" ? "Grid meter via inverter" : "Inverter"} · input register {info.reg} ({info.type})</span>
             <span>Scaling</span><span class="num">raw × {info.scale}{info.unit ? ` → ${info.unit}` : ""}</span>
             <span>Kind</span><span>{{ power: "Instantaneous power", instant: "Instantaneous value", counter_day: "Daily energy counter (resets each day)", counter_total: "Lifetime counter", code: "Code / raw value", status: "Status" }[info.kind]}</span>
-            <span>History</span><span>{stored.has(info.id) ? "Logged every minute (≈26 days) and as 15-minute averages (≈4 months)" : info.kind === "counter_day" ? "Logged in the 15-minute tier and daily summaries" : "Live only"}</span>
+            <span>History</span><span>{stored.has(info.id) ? "Logged every minute (≈18 days) and as 15-minute averages (≈4 months)" : info.kind === "counter_day" ? "Logged in the 15-minute tier and daily summaries" : "Live only"}</span>
             <span>Identifier</span><span class="num">{info.id}</span>
           </div>
           <div class="row" style={{ marginTop: 16, gap: 8 }}>
