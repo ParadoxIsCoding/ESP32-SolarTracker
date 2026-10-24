@@ -37,11 +37,16 @@ export interface ChartProps {
   xRange?: [number, number];
 }
 
-/** Inserts nulls where consecutive samples are further apart than `gap`. */
+/**
+ * Inserts nulls where consecutive samples are further apart than `gap`, and
+ * bridges per-series holes that only exist because several series share one
+ * x axis (e.g. today's curve has no value at a timestamp only yesterday has).
+ * uPlot breaks lines at `null` but spans `undefined`.
+ */
 export function withGaps(x: number[], ys: (number | null)[][], gap: number) {
   if (!gap || x.length < 2) return { x, ys };
   const nx: number[] = [];
-  const nys: (number | null)[][] = ys.map(() => []);
+  const nys: (number | null | undefined)[][] = ys.map(() => []);
   for (let i = 0; i < x.length; i++) {
     if (i && x[i] - x[i - 1] > gap) {
       nx.push(x[i - 1] + 1);
@@ -49,6 +54,14 @@ export function withGaps(x: number[], ys: (number | null)[][], gap: number) {
     }
     nx.push(x[i]);
     ys.forEach((a, k) => nys[k].push(a[i]));
+  }
+  for (const a of nys) {
+    let prev = -1;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] == null) continue;
+      if (prev >= 0 && i - prev > 1 && nx[i] - nx[prev] <= gap) for (let j = prev + 1; j < i; j++) a[j] = undefined;
+      prev = i;
+    }
   }
   return { x: nx, ys: nys };
 }
@@ -83,7 +96,7 @@ function tooltipPlugin(series: SeriesDef[], xKind: "time" | "day") {
         let rows = "";
         series.forEach((s, k) => {
           if (!u.series[k + 1].show) return;
-          const v = u.data[k + 1][i] as number | null;
+          const v = (u.data[k + 1][i] ?? null) as number | null;
           rows += `<div class="r"><span><i style="background:${s.color}"></i>${s.label}</span><b class="num">${s.fmt(v)}</b></div>`;
         });
         tip.innerHTML = `<div class="t">${xKind === "day" ? fmtDay(x + 43200) : fmtDateTime(x)}</div>${rows}`;
